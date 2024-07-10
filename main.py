@@ -211,7 +211,7 @@ def classify_stage1():
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
 
-        save_predictions_to_gcs(json_result)
+        save_predictions_to_gcs([json_result])
 
         return output
 
@@ -233,6 +233,7 @@ def classify_stage2(region):
         orig_df['pic'] = 'DICKY.WN'
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
+        save_predictions_to_gcs([json_result])
         return output
 
     regions = ['CKD', 'LMP', 'MDN', 'PKB', 'MKS', 'PLB', 'PTK', 'SMG', 'SBY']
@@ -257,7 +258,7 @@ def classify_stage2(region):
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
 
-        save_predictions_to_gcs(json_result)
+        save_predictions_to_gcs([json_result])
 
         return output
 
