@@ -143,7 +143,7 @@ def transform_and_predict(model, df, label_encoder, column_transformer=None, pic
     final_pred = []
     for i, (pred, prob) in enumerate(zip(predictions, max_probabilities)):
         translated_label = label_encoder.inverse_transform([pred])[0] if label_encoder else pic[pred]
-        print(f"Sample {i}: Predicted label = {translated_label}, Probability = {(prob * 100):.3f}%")
+        # print(f"Sample {i}: Predicted label = {translated_label}, Probability = {(prob * 100):.3f}%")
         final_pred.append(translated_label)
 
     return final_pred
@@ -205,6 +205,7 @@ def classify_stage1():
         return df, orig_df  # df contains error message, orig_df contains error code
 
     try:
+        print(f"predicting {len(request_json)} samples")
         final_pred = transform_and_predict(model, df, label_encoder=None, column_transformer=column_transformer, pic=pic)
         orig_df['pic'] = final_pred
         json_result = orig_df.set_index('id')['pic'].to_dict()
@@ -248,13 +249,16 @@ def classify_stage2(region):
     if isinstance(df, str):
         return df, orig_df  # df contains error message, orig_df contains error code
 
-    print(df.head())
 
     try:
+        print(f"predicting {len(request_json)} samples")
         final_pred = transform_and_predict(model, df, label_encoder)
         orig_df['pic'] = final_pred
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
+
+        save_predictions_to_gcs(json_result)
+
         return output
 
     except Exception as e:
