@@ -1,4 +1,6 @@
 daily_data/
+stage1/
+stage2/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
