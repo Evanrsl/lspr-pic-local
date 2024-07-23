@@ -264,7 +264,7 @@ def classify_stage2(region):
         save_predictions_to_gcs([json_result])
         return output
 
-    regions = ['CKD', 'LMP', 'MDN', 'PKB', 'MKS', 'PLB', 'PTK', 'SMG', 'SBY']
+    regions = ['CKD', 'CRB', 'LMP', 'MKS', 'MDN', 'PKB', 'PLB', 'PTK', 'SMG', 'SBY']
     if region not in regions:
         return f'Invalid region: {region}', 400
 
