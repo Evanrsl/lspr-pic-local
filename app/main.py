@@ -12,23 +12,25 @@ import subprocess
 app = Flask(__name__)
 CORS(app)
 
-DATA_DIR = '/data/'
+DATA_DIR = 'app/data'
+
 
 def load_constants():
-    constants_file = f'{DATA_DIR}/constants.json'
+    constants_file = os.path.join(DATA_DIR, 'constants.json')
     with open(constants_file, 'r') as file:
         constants = json.load(file)
     return constants
 
+
 def save_constants(constants):
-    constants_file = f'{DATA_DIR}/constants.json'
+    constants_file = os.path.join(DATA_DIR, 'constants.json')
     with open(constants_file, 'w') as file:
         json.dump(constants, file)
 
 
 def save_predictions(pred):
     today_date = datetime.now().strftime('%Y-%m-%d')
-    file_path = f"{DATA_DIR}/predictions/{today_date}.json"
+    file_path = os.path.join(DATA_DIR, 'predictions', f'{today_date}.json')
     timestamp = datetime.now().isoformat()
 
     wrapped_predictions = [{timestamp: prediction} for prediction in pred]
@@ -46,15 +48,14 @@ def save_predictions(pred):
         with open(file_path, 'w') as file:
             json.dump(wrapped_predictions, file, indent=4)
 
+
 def load_stage1_model_local():
-    """
-    Load the stage 1 model, column transformer, and PIC labels.
-    """
     stage1_path = os.path.join(DATA_DIR, 'stage1')
     clf = xgb.XGBClassifier()
     clf.load_model(os.path.join(stage1_path, "model.json"))
 
-    column_transformer = load(os.path.join(stage1_path, "column_transformer.joblib"))
+    column_transformer = load(os.path.join(
+        stage1_path, "column_transformer.joblib"))
 
     with open(os.path.join(stage1_path, "variable.json"), 'r') as file:
         data = json.load(file)
@@ -65,35 +66,24 @@ def load_stage1_model_local():
 
 
 def load_stage2_model_local(model_index):
-    """
-    Load the stage 2 model and label encoder for the given model index.
-    """
     stage2_path = os.path.join(DATA_DIR, 'stage2')
     model = load(os.path.join(stage2_path, f'model_{model_index}.joblib'))
-    label_encoder = load(os.path.join(stage2_path, f'label_encoder_{model_index}.joblib'))
+    label_encoder = load(os.path.join(
+        stage2_path, f'label_encoder_{model_index}.joblib'))
     return model, label_encoder
 
 
 def split_product_id(df):
-    """
-    Split product_id into 3 columns.
-    """
     df[['product_id_1', 'product_id_2', 'product_id_3']
        ] = df['materialNumber'].str.extract(r'(\d{3})\.(\d{2})\.(\d{4})')
     return df
 
 
 def clean_columns(df):
-    """
-    Clean and select necessary columns.
-    """
     return df[['purchaseGroupID', 'product_id_1', 'product_id_2', 'product_id_3', 'plantCode']]
 
 
 def preprocess_input_data(request_json):
-    """
-    Preprocess the input JSON data and return the DataFrame.
-    """
     if not request_json:
         return 'Missing JSON', 400
 
@@ -109,11 +99,7 @@ def preprocess_input_data(request_json):
 
 
 def transform_and_predict(model, df, label_encoder, column_transformer=None, pic=None):
-    """
-    Transform the input data, make predictions, and translate them.
-    """
-    X = df.drop(
-        'pic', axis=1, errors='ignore')  # Adjust 'pic' to the actual target column name if different
+    X = df.drop('pic', axis=1, errors='ignore')
 
     if column_transformer:
         X = column_transformer.transform(X)
@@ -126,7 +112,6 @@ def transform_and_predict(model, df, label_encoder, column_transformer=None, pic
     for i, (pred, prob) in enumerate(zip(predictions, max_probabilities)):
         translated_label = label_encoder.inverse_transform(
             [pred])[0] if label_encoder else pic[pred]
-        # print(f"Sample {i}: Predicted label = {translated_label}, Probability = {(prob * 100):.3f}%")
         final_pred.append(translated_label)
 
     return final_pred
@@ -139,12 +124,9 @@ def hello_world():
 
 @app.route('/update_data', methods=['POST'])
 def handle_data():
-    # Get today's date in the format YYYY-MM-DD
     today_date = datetime.now().strftime('%Y-%m-%d')
-    # Define the file path
-    file_path = os.path.join(DATA_DIR, 'daily_data' , f'{today_date}.json')
+    file_path = os.path.join(DATA_DIR, 'daily_data', f'{today_date}.json')
 
-    # Get the request body
     new_data_list = request.json
 
     if not isinstance(new_data_list, list):
@@ -153,24 +135,18 @@ def handle_data():
     for new_data in new_data_list:
         if 'id' not in new_data:
             return jsonify({"error": "Each item must contain an 'id' field"}), 400
-        # Add the createdAt field with the current timestamp
         new_data['createdAt'] = datetime.now().isoformat()
 
     if os.path.exists(file_path):
-        # If file exists, read the existing data
         with open(file_path, 'r+') as file:
             existing_data = json.load(file)
             if not isinstance(existing_data, list):
                 existing_data = [existing_data]
-
-            # Append the new data to the existing data
             existing_data.extend(new_data_list)
-
             file.seek(0)
             file.truncate()
             json.dump(existing_data, file, indent=4)
     else:
-        # If file does not exist, create a new file and save the data
         with open(file_path, 'w') as file:
             json.dump(new_data_list, file, indent=4)
 
@@ -223,7 +199,8 @@ def classify_stage2(region):
         save_predictions([json_result])
         return output
 
-    regions = ['CKD', 'CRB', 'LMP', 'MKS', 'MDN', 'PKB', 'PLB', 'PTK', 'SMG', 'SBY']
+    regions = ['CKD', 'CRB', 'LMP', 'MDN',
+               'MKS', 'PKB', 'PLB', 'PTK', 'SBY', 'SMG']
     if region not in regions:
         return f'Invalid region: {region}', 400
 
@@ -268,16 +245,14 @@ def update_constants():
     save_constants(constants)
     return jsonify({"message": "Constants updated successfully"}), 200
 
+
 @app.route('/retrain', methods=['POST'])
 def train_model_https():
     try:
-        # Log the received request
         print(f"Received request: {request.json}")
-        # Run the training script
-        result = subprocess.run(['python', 'training.py'], capture_output=True, text=True)
-        # Log the output
+        result = subprocess.run(
+            ['python', 'app/training.py'], capture_output=True, text=True)
         print(result.stdout)
-        # Check if there was an error
         if result.returncode != 0:
             print(result.stderr)
             return f"Error: {result.stderr}", 500

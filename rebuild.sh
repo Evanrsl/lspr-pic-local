@@ -1,10 +1,13 @@
 #!/bin/bash
 
-# Build and run the container
-docker-compose up --build -d
+# Stop the running containers
+docker-compose down
 
-# Remove dangling images (images with no tag, usually old images)
-docker image prune -f
+# Remove old images
+docker rmi $(docker images -q ecomdiv-ai-autoassign)
 
-# Optional: remove all unused images
-# docker image prune -a -f
+# Build the Docker image
+docker-compose build
+
+# Start the containers
+docker-compose up -d
