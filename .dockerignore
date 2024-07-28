@@ -9,8 +9,8 @@ node_modules
 # Ignore directories starting with a dot
 .*
 
-venv/
-daily_data/
-stage1/
-stage2/
-training_model/
+# Ignore the data directory to prevent it from being copied into the image
+app/data/
+
+__pycache__/
+*.pyc
