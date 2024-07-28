@@ -251,7 +251,7 @@ def train_model_https():
     try:
         print(f"Received request: {request.json}")
         result = subprocess.run(
-            ['python', 'app/training.py'], capture_output=True, text=True)
+            ['python', 'training.py'], capture_output=True, text=True)
         print(result.stdout)
         if result.returncode != 0:
             print(result.stderr)
