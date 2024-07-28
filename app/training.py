@@ -12,55 +12,26 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score
 from google.cloud import storage
 
-# Initialize a Cloud Storage client
-storage_client = storage.Client()
-bucket_name = 'lspr-pic-assign'  # Replace with your actual bucket name
+DATA_DIR = '/data/'
 
-# Function to download files from Cloud Storage
-def download_blob(bucket_name, source_blob_name, destination_file_name):
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(source_blob_name)
-    blob.download_to_filename(destination_file_name)
-    print(f'Blob {source_blob_name} downloaded to {destination_file_name}.')
-
-# Function to upload files to Cloud Storage
-def upload_blob(bucket_name, source_file_name, destination_blob_name):
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
-    blob.upload_from_filename(source_file_name)
-    print(f'File {source_file_name} uploaded to {destination_blob_name}.')
-
-# Load constants from GCS
-def load_constants_from_gcs():
-    constants_file = '/tmp/constants.json'
-    download_blob(bucket_name, 'constants/constants.json', constants_file)
+def load_constants():
+    constants_file = f'{DATA_DIR}/constants.json'
     with open(constants_file, 'r') as file:
         constants = json.load(file)
     return constants
 
-# Directory containing the JSON files in GCS
-gcs_directory = 'daily_data/'
-
-# Download all JSON files from the GCS directory
-blobs = storage_client.list_blobs(bucket_name, prefix=gcs_directory)
-all_files = []
-for blob in blobs:
-    if blob.name.endswith('.json'):
-        local_file = f'/tmp/{os.path.basename(blob.name)}'
-        download_blob(bucket_name, blob.name, local_file)
-        all_files.append(local_file)
+all_files = [os.path.join(DATA_DIR, 'daily_data', file) for file in os.listdir(os.path.join(DATA_DIR, 'daily_data')) if file.endswith('.json')]
 
 # Read and concatenate JSON files
 print("Reading and concatenating JSON files...")
 df_list = []
 for file in all_files:
     try:
-        with open(file, 'r') as f:
-            if os.stat(file).st_size == 0:
-                print(f"Skipping empty file: {file}")
-                continue
-            df = pd.read_json(f, lines=True)
-            df_list.append(df)
+        if os.stat(file).st_size == 0:
+            print(f"Skipping empty file: {file}")
+            continue
+        df = pd.read_json(file)
+        df_list.append(df)
     except (ValueError, EmptyDataError) as e:
         print(f"Skipping file due to error ({file}): {e}")
         continue
@@ -77,7 +48,7 @@ df = data[['plantCode', 'purchaseGroupID', 'materialNumber', 'pic']].copy()
 df[['product_id_1', 'product_id_2', 'product_id_3']] = df['materialNumber'].str.extract(r'(\d{3})\.(\d{2})\.(\d{4})')
 
 # Load constants
-constants = load_constants_from_gcs()
+constants = load_constants()
 GROUP_SAP = constants['GROUP_SAP']
 REGIONAL_SAP = constants['REGIONAL_SAP']
 REGIONAL_HEAD = constants['REGIONAL_HEAD']
@@ -111,7 +82,7 @@ stage1_df = stage1_df[stage1_df['pic'].isin(values_to_keep)].copy()
 
 # Check possible PIC by their group
 def stage1_possible_classes(group):
-    # Use the PIC_EMAIL dictionary to get possible classes based on group
+    # Use the GROUP_SAP dictionary to get possible classes based on group
     possible_classes = GROUP_SAP.get(group, []) + REGIONAL_HEAD + VEHICLE_SAP
     return possible_classes
 
@@ -177,7 +148,7 @@ print(f'Filtered Accuracy: {filtered_accuracy}')
 
 # Save the model
 print("Saving the model...")
-stage1_directory = '/tmp/stage1'
+stage1_directory = os.path.join(DATA_DIR, 'stage1')
 os.makedirs(stage1_directory, exist_ok=True)
 
 # Save model and column transformer
@@ -186,10 +157,6 @@ dump(column_transformer, os.path.join(stage1_directory, 'column_transformer.jobl
 with open(os.path.join(stage1_directory, 'variable.json'), 'w') as file:
     json.dump({'pic': label_encoder.classes_.tolist()}, file)
 
-# Upload the model to GCS
-upload_blob(bucket_name, os.path.join(stage1_directory, 'model.json'), 'stage1/model.json')
-upload_blob(bucket_name, os.path.join(stage1_directory, 'column_transformer.joblib'), 'stage1/column_transformer.joblib')
-upload_blob(bucket_name, os.path.join(stage1_directory, 'variable.json'), 'stage1/variable.json')
 
 print(f"Model saved in {stage1_directory}")
 
@@ -214,7 +181,7 @@ def preprocess_data(df):
 
 models = []
 output_labels = []
-stage2_directory = "/tmp/stage2"
+stage2_directory = os.path.join(DATA_DIR, 'stage2')
 os.makedirs(stage2_directory, exist_ok=True)
 
 for i, df in enumerate(regions_df):
@@ -265,11 +232,5 @@ for i, df in enumerate(regions_df):
 
 with open(os.path.join(stage2_directory, 'output_labels.json'), 'w') as f:
     json.dump(output_labels, f)
-
-# Upload the stage 2 models and label encoders to GCS
-for i in range(len(models)):
-    upload_blob(bucket_name, os.path.join(stage2_directory, f'model_{i+1}.joblib'), f'stage2/model_{i+1}.joblib')
-    upload_blob(bucket_name, os.path.join(stage2_directory, f'label_encoder_{i+1}.joblib'), f'stage2/label_encoder_{i+1}.joblib')
-upload_blob(bucket_name, os.path.join(stage2_directory, 'output_labels.json'), 'stage2/output_labels.json')
 
 print("All models and label encoders saved successfully.")

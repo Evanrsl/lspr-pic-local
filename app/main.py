@@ -7,49 +7,28 @@ import numpy as np
 import json
 from flask_cors import CORS
 from datetime import datetime
-from google.cloud import storage
-
+import subprocess
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize Cloud Storage client
-storage_client = storage.Client()
-bucket_name = 'lspr-pic-assign'  # Replace with your actual bucket name
+DATA_DIR = '/data/'
 
-
-def upload_blob(bucket_name, source_file_name, destination_blob_name):
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
-    blob.upload_from_filename(source_file_name)
-    print(f'File {source_file_name} uploaded to {destination_blob_name}.')
-
-
-def download_blob(bucket_name, source_blob_name, destination_file_name):
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(source_blob_name)
-    blob.download_to_filename(destination_file_name)
-    print(f'Blob {source_blob_name} downloaded to {destination_file_name}.')
-
-
-def load_constants_from_gcs():
-    constants_file = '/tmp/constants.json'
-    download_blob(bucket_name, 'constants/constants.json', constants_file)
+def load_constants():
+    constants_file = f'{DATA_DIR}/constants.json'
     with open(constants_file, 'r') as file:
         constants = json.load(file)
     return constants
 
-
-def save_constants_to_gcs(constants):
-    constants_file = '/tmp/constants.json'
+def save_constants(constants):
+    constants_file = f'{DATA_DIR}/constants.json'
     with open(constants_file, 'w') as file:
         json.dump(constants, file)
-    upload_blob(bucket_name, constants_file, 'constants/constants.json')
 
 
-def save_predictions_to_gcs(pred):
+def save_predictions(pred):
     today_date = datetime.now().strftime('%Y-%m-%d')
-    file_path = f"/tmp/predict_{today_date}.json"
+    file_path = f"{DATA_DIR}/predictions/{today_date}.json"
     timestamp = datetime.now().isoformat()
 
     wrapped_predictions = [{timestamp: prediction} for prediction in pred]
@@ -67,29 +46,17 @@ def save_predictions_to_gcs(pred):
         with open(file_path, 'w') as file:
             json.dump(wrapped_predictions, file, indent=4)
 
-    upload_blob(bucket_name, file_path, f'predictions/{today_date}.json')
-
-
-# Load initial constants
-constants = load_constants_from_gcs()
-
-
-def load_stage1_model():
+def load_stage1_model_local():
     """
     Load the stage 1 model, column transformer, and PIC labels.
     """
-    # Download stage1 model files from GCS
-    download_blob(bucket_name, 'stage1/model.json', '/tmp/model.json')
-    download_blob(bucket_name, 'stage1/column_transformer.joblib',
-                  '/tmp/column_transformer.joblib')
-    download_blob(bucket_name, 'stage1/variable.json', '/tmp/variable.json')
-
+    stage1_path = os.path.join(DATA_DIR, 'stage1')
     clf = xgb.XGBClassifier()
-    clf.load_model("/tmp/model.json")
+    clf.load_model(os.path.join(stage1_path, "model.json"))
 
-    column_transformer = load("/tmp/column_transformer.joblib")
+    column_transformer = load(os.path.join(stage1_path, "column_transformer.joblib"))
 
-    with open("/tmp/variable.json", 'r') as file:
+    with open(os.path.join(stage1_path, "variable.json"), 'r') as file:
         data = json.load(file)
 
     pic = data['pic']
@@ -97,18 +64,13 @@ def load_stage1_model():
     return clf, column_transformer, pic
 
 
-def load_stage2_model(model_index):
+def load_stage2_model_local(model_index):
     """
     Load the stage 2 model and label encoder for the given model index.
     """
-    # Download stage2 model files from GCS
-    download_blob(
-        bucket_name, f'stage2/model_{model_index}.joblib', f'/tmp/model_{model_index}.joblib')
-    download_blob(
-        bucket_name, f'stage2/label_encoder_{model_index}.joblib', f'/tmp/label_encoder_{model_index}.joblib')
-
-    model = load(f'/tmp/model_{model_index}.joblib')
-    label_encoder = load(f'/tmp/label_encoder_{model_index}.joblib')
+    stage2_path = os.path.join(DATA_DIR, 'stage2')
+    model = load(os.path.join(stage2_path, f'model_{model_index}.joblib'))
+    label_encoder = load(os.path.join(stage2_path, f'label_encoder_{model_index}.joblib'))
     return model, label_encoder
 
 
@@ -180,7 +142,7 @@ def handle_data():
     # Get today's date in the format YYYY-MM-DD
     today_date = datetime.now().strftime('%Y-%m-%d')
     # Define the file path
-    file_path = f"/tmp/commit_{today_date}.json"
+    file_path = os.path.join(DATA_DIR, 'daily_data' , f'{today_date}.json')
 
     # Get the request body
     new_data_list = request.json
@@ -212,15 +174,12 @@ def handle_data():
         with open(file_path, 'w') as file:
             json.dump(new_data_list, file, indent=4)
 
-    # Upload the updated data to GCS
-    upload_blob(bucket_name, file_path, f'daily_data/{today_date}.json')
-
     return jsonify({"message": "Data processed successfully"}), 200
 
 
 @app.route('/stage1', methods=['POST'])
 def classify_stage1():
-    model, column_transformer, pic = load_stage1_model()
+    model, column_transformer, pic = load_stage1_model_local()
     if model is None or column_transformer is None or pic is None:
         return 'Model not loaded properly', 500
 
@@ -238,7 +197,7 @@ def classify_stage1():
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
 
-        save_predictions_to_gcs([json_result])
+        save_predictions([json_result])
 
         return output
 
@@ -261,7 +220,7 @@ def classify_stage2(region):
         orig_df['pic'] = 'DICKY.WN'
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
-        save_predictions_to_gcs([json_result])
+        save_predictions([json_result])
         return output
 
     regions = ['CKD', 'CRB', 'LMP', 'MKS', 'MDN', 'PKB', 'PLB', 'PTK', 'SMG', 'SBY']
@@ -269,7 +228,7 @@ def classify_stage2(region):
         return f'Invalid region: {region}', 400
 
     model_index = regions.index(region) + 1
-    model, label_encoder = load_stage2_model(model_index)
+    model, label_encoder = load_stage2_model_local(model_index)
     if model is None or label_encoder is None:
         return 'Model not loaded properly', 500
 
@@ -285,7 +244,7 @@ def classify_stage2(region):
         json_result = orig_df.set_index('id')['pic'].to_dict()
         output = json.dumps(json_result, indent=4)
 
-        save_predictions_to_gcs([json_result])
+        save_predictions([json_result])
 
         return output
 
@@ -297,17 +256,35 @@ def classify_stage2(region):
 
 @app.route('/constants', methods=['GET'])
 def get_constants():
-    constants = load_constants_from_gcs()
+    constants = load_constants()
     return jsonify(constants)
 
 
 @app.route('/constants', methods=['POST'])
 def update_constants():
     new_constants = request.json
-    constants = load_constants_from_gcs()
+    constants = load_constants()
     constants.update(new_constants)
-    save_constants_to_gcs(constants)
+    save_constants(constants)
     return jsonify({"message": "Constants updated successfully"}), 200
+
+@app.route('/retrain', methods=['POST'])
+def train_model_https():
+    try:
+        # Log the received request
+        print(f"Received request: {request.json}")
+        # Run the training script
+        result = subprocess.run(['python', 'training.py'], capture_output=True, text=True)
+        # Log the output
+        print(result.stdout)
+        # Check if there was an error
+        if result.returncode != 0:
+            print(result.stderr)
+            return f"Error: {result.stderr}", 500
+        return "Training started successfully", 200
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
 
 
 if __name__ == '__main__':
