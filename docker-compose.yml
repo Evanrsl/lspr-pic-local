@@ -1,6 +1,6 @@
 version: '3.8'
 services:
-  flask-app:
+  ecomdiv-autoassign-container:
     build: .
     image: ecomdiv-ai-autoassign  # Custom image name
     ports:
