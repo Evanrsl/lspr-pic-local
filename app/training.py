@@ -11,7 +11,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score
 
-DATA_DIR = 'app/data/'
+DATA_DIR = '/app/data/'
 
 
 def load_constants():
