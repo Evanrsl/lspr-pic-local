@@ -4,8 +4,8 @@ services:
     build: .
     image: ecomdiv-ai-autoassign  # Custom image name
     ports:
-      - "8080:8080"
+      - "9090:9090"
     volumes:
       - ./app/data:/app/data
     environment:
-      - PORT=8080
+      - PORT=9090

@@ -7,7 +7,7 @@ docker-compose up -d
 sleep 10
 
 # URL of the retrain endpoint
-RETRAIN_URL="http://localhost:8080/retrain"
+RETRAIN_URL="http://localhost:9090/retrain"
 
 # Send POST request to retrain the model
 curl -X POST $RETRAIN_URL

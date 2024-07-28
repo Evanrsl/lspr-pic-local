@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY app/ /app/
 
-# Make port 8080 available to the world outside this container
-EXPOSE 8080
+# Make port 9090 available to the world outside this container
+EXPOSE 9090
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
