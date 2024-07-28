@@ -12,7 +12,7 @@ import subprocess
 app = Flask(__name__)
 CORS(app)
 
-DATA_DIR = 'app/data'
+DATA_DIR = '/app/data/'
 
 
 def load_constants():

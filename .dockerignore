@@ -1,14 +1,3 @@
-# Ignore files and directories
-.git
-node_modules
 *.log
-
-# Ignore specific file types
-*.docx
-
-# Ignore directories starting with a dot
-.*
-
-
 __pycache__/
 *.pyc
