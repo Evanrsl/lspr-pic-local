@@ -30,7 +30,9 @@ def save_constants(constants):
 
 def save_predictions(pred):
     today_date = datetime.now().strftime('%Y-%m-%d')
-    file_path = os.path.join(DATA_DIR, 'predictions', f'{today_date}.json')
+    directory_path = os.path.join(DATA_DIR, 'predictions')
+    os.makedirs(directory_path, exist_ok=True)
+    file_path = os.path.join(directory_path, f'{today_date}.json')
     timestamp = datetime.now().isoformat()
 
     wrapped_predictions = [{timestamp: prediction} for prediction in pred]
