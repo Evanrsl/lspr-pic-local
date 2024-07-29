@@ -19,4 +19,4 @@ ENV PYTHONUNBUFFERED=1
 
 # Run main.py when the container launches
 # CMD ["python", "main.py"]
-CMD ["gunicorn", "--bind", "0.0.0.0:9090", "wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:9090", "-c", "gunicorn_config.py", "wsgi:app"]
