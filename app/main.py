@@ -262,8 +262,3 @@ def train_model_https():
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return f"An error occurred: {str(e)}", 500
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 9090))
-    app.run(host='0.0.0.0', port=port)
